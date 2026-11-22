@@ -9,29 +9,30 @@ FROM node:${NODE_VERSION}-alpine AS base
 WORKDIR /usr/src/app
 
 ################################################################################
-# Production dependencies. npm workspaces need the root lockfile AND every
-# workspace manifest before `npm ci` will accept the tree.
+# Production dependencies. All workspace manifests are required for npm to
+# resolve the monorepo tree. The lockfile is intentionally ignored because it
+# was generated on Windows and lacks Linux native binaries (npm/cli#4828).
 ################################################################################
 FROM base AS deps
-COPY package.json package-lock.json ./
+COPY package.json ./
 COPY server/package.json ./server/
 COPY client/package.json ./client/
 RUN --mount=type=cache,target=/root/.npm \
-    npm ci --omit=dev
+    npm install --no-package-lock --omit=dev --no-audit --no-fund
 
 ################################################################################
 # Build stage: full dev toolchain, then compile both workspaces.
+# Kept independent from `deps` so the prod and dev trees install in parallel and
+# neither has to delete and reinstall node_modules.
 ################################################################################
-FROM deps AS build
-COPY . .
-# The lockfile was generated on Windows and only contains that platform's
-# optional native binaries (npm/cli#4828). A fresh install resolves the
-# correct Rollup/esbuild binaries for the Linux container.
+FROM base AS build
+COPY package.json ./
+COPY server/package.json ./server/
+COPY client/package.json ./client/
 RUN --mount=type=cache,target=/root/.npm \
-    rm -rf node_modules package-lock.json && \
-    npm install --no-package-lock && \
-    npm run typecheck && \
-    npm run build
+    npm install --no-package-lock --no-audit --no-fund
+COPY . .
+RUN npm run typecheck && npm run build
 
 ################################################################################
 # Runtime image: compiled output + production dependencies only.

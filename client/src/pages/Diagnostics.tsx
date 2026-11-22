@@ -172,11 +172,16 @@ function renderResult(tool: Tool, value: unknown, showRaw: boolean): ReactNode {
           <span>Max: <span className="font-mono text-text">{result.maxLatencyMs ?? '—'} ms</span></span>
         </div>
         {result.replies.length > 0 ? (
-          <table className="w-full text-left text-xs">
+          <table className="mobile-cards w-full text-left text-xs">
             <thead><tr className="border-b border-border text-[11px] uppercase text-muted"><th className="py-2">#</th><th className="py-2">Address</th><th className="py-2">Latency</th><th className="py-2">TTL</th></tr></thead>
             <tbody className="font-mono">
               {result.replies.map((reply) => (
-                <tr key={reply.seq} className="border-b border-border/60"><td className="py-1.5">{reply.seq}</td><td className="py-1.5">{reply.address}</td><td className="py-1.5">{reply.latencyMs} ms</td><td className="py-1.5">{reply.ttl ?? '—'}</td></tr>
+                <tr key={reply.seq} className="border-b border-border/60">
+                  <td data-label="#" className="py-1.5">{reply.seq}</td>
+                  <td data-label="Address" className="py-1.5">{reply.address}</td>
+                  <td data-label="Latency" className="py-1.5">{reply.latencyMs} ms</td>
+                  <td data-label="TTL" className="py-1.5">{reply.ttl ?? '—'}</td>
+                </tr>
               ))}
             </tbody>
           </table>
@@ -212,15 +217,15 @@ function renderResult(tool: Tool, value: unknown, showRaw: boolean): ReactNode {
       <div>
         <SectionTitle hint={result.host}>Route</SectionTitle>
         <div className="mb-3"><Badge tone={result.completed ? 'good' : 'warn'}>{result.completed ? 'Trace completed' : 'Trace did not reach destination'}</Badge></div>
-        <table className="w-full text-left text-xs">
+        <table className="mobile-cards w-full text-left text-xs">
           <thead><tr className="border-b border-border text-[11px] uppercase text-muted"><th className="py-2">Hop</th><th className="py-2">Address</th><th className="py-2">Probes</th><th className="py-2">Status</th></tr></thead>
           <tbody className="font-mono">
             {result.hops.map((hop) => (
               <tr key={hop.hop} className="border-b border-border/60">
-                <td className="py-1.5">{hop.hop}</td>
-                <td className="py-1.5">{hop.address ?? '*'}</td>
-                <td className="py-1.5">{hop.probes.length ? hop.probes.map((probe) => `${probe} ms`).join(' / ') : '—'}</td>
-                <td className="py-1.5">{hop.timedOut ? <Badge tone="warn">timeout</Badge> : <Badge tone="good">replied</Badge>}</td>
+                <td data-label="Hop" className="py-1.5">{hop.hop}</td>
+                <td data-label="Address" className="py-1.5">{hop.address ?? '*'}</td>
+                <td data-label="Probes" className="py-1.5">{hop.probes.length ? hop.probes.map((probe) => `${probe} ms`).join(' / ') : '—'}</td>
+                <td data-label="Status" className="py-1.5">{hop.timedOut ? <Badge tone="warn">timeout</Badge> : <Badge tone="good">replied</Badge>}</td>
               </tr>
             ))}
           </tbody>

@@ -11,3 +11,11 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+// Installable offline app shell. Never registered in dev so API/proxy debugging
+// stays predictable. Browsers only offer install on localhost or HTTPS.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+  });
+}

@@ -56,6 +56,148 @@ export interface GatewayInfo {
 const firstText = (value: unknown): string | null =>
   typeof value === 'string' && value.trim() ? value.trim() : null;
 
+interface WindowsStaticFacts {
+  os?: OsVersionRow | OsVersionRow[];
+  cpu?: { NumberOfCores?: number } | Array<{ NumberOfCores?: number }>;
+  gpu?: GpuRow | GpuRow[];
+}
+
+/**
+ * PowerShell startup dominates first-load latency. These three facts are
+ * static for the life of the machine, so collect them in one process once.
+ */
+let staticFactsPromise: Promise<WindowsStaticFacts | null> | null = null;
+
+export function getWindowsStaticFacts(): Promise<WindowsStaticFacts | null> {
+  if (os.platform() !== 'win32') return Promise.resolve(null);
+  if (!staticFactsPromise) {
+    staticFactsPromise = powerShellJson<WindowsStaticFacts>(
+      '$os = Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber; ' +
+        '$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1 NumberOfCores; ' +
+        '$gpu = Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion,AdapterRAM; ' +
+        '[pscustomobject]@{ os = $os; cpu = $cpu; gpu = @($gpu) }',
+      20_000,
+    ).catch(() => {
+      // Allow a later request to retry instead of caching a permanent failure.
+      staticFactsPromise = null;
+      return null;
+    });
+  }
+  return staticFactsPromise;
+}
+
+interface IpConfigSection {
+  name: string;
+  description: string;
+  ipv4: string[];
+  gateways: string[];
+  dns: string[];
+}
+
+interface WindowsNetworkFacts {
+  gateways: GatewayInfo;
+  dns: Field<string[]>;
+  adapters: AdapterRow[];
+}
+
+function parseIpConfig(text: string): IpConfigSection[] {
+  const sections: IpConfigSection[] = [];
+  let current: IpConfigSection | null = null;
+  let lastKey = '';
+
+  const addAddress = (target: string[], raw: string) => {
+    for (const item of raw.split(/[,\s]+/)) {
+      const value = item.replace(/\(.*?\)/g, '').trim();
+      if (value && /^[\da-f:./]+$/i.test(value) && !target.includes(value)) target.push(value);
+    }
+  };
+
+  for (const line of text.split(/\r?\n/)) {
+    const header = /^\s*(?:[^\s:]+(?:\s+[^\s:]+)*\s+)?adapter\s+(.+):\s*$/i.exec(line);
+    if (header) {
+      current = { name: header[1].trim(), description: '', ipv4: [], gateways: [], dns: [] };
+      sections.push(current);
+      lastKey = '';
+      continue;
+    }
+    if (!current) continue;
+
+    const match = /^\s{2,}(.+?)\s*[. ]{2,}:\s*(.*)$/.exec(line);
+    if (match) {
+      const key = match[1].trim();
+      const value = match[2].trim();
+      lastKey = key;
+      if (/^Description$/i.test(key)) current.description = value;
+      else if (/^IPv4 Address/i.test(key)) addAddress(current.ipv4, value);
+      else if (/^Default Gateway/i.test(key)) addAddress(current.gateways, value);
+      else if (/^DNS Servers/i.test(key)) addAddress(current.dns, value);
+      continue;
+    }
+
+    const trimmed = line.trim();
+    if (!trimmed || !lastKey || !/^(DNS Servers|Default Gateway)/i.test(lastKey)) continue;
+    if (!/^[\da-f:./]+$/i.test(trimmed)) continue;
+    const target = /^DNS Servers/i.test(lastKey) ? current.dns : current.gateways;
+    if (!target.includes(trimmed)) target.push(trimmed);
+  }
+
+  return sections;
+}
+
+let networkFactsEntry: { at: number; promise: Promise<WindowsNetworkFacts | null> } | null = null;
+
+/**
+ * `ipconfig /all` returns adapters, gateways and DNS in one fast native call.
+ * PowerShell net cmdlets take tens of seconds on some Windows machines.
+ */
+export async function getWindowsNetworkFacts(): Promise<WindowsNetworkFacts | null> {
+  if (os.platform() !== 'win32') return null;
+  const now = Date.now();
+  if (networkFactsEntry && now - networkFactsEntry.at < 15_000) return networkFactsEntry.promise;
+
+  const promise = (async () => {
+    const result = await runCommand('ipconfig', ['/all'], 5000);
+    if (result.exitCode !== 0 || !result.stdout) return null;
+
+    const sections = parseIpConfig(result.stdout);
+    const active =
+      sections.find((section) => section.gateways.length > 0 && section.ipv4.length > 0 && !/loopback|npcap|wsl|virtual/i.test(section.name)) ??
+      sections.find((section) => section.gateways.length > 0) ??
+      sections[0] ??
+      null;
+
+    const ipv4Gateway = active?.gateways.find((gateway) => gateway.includes('.') && !gateway.includes(':'));
+    const ipv6Gateway = active?.gateways.find((gateway) => gateway.includes(':'));
+    const dnsServers = [...new Set(sections.flatMap((section) => section.dns))].filter(
+      (server) => !/^fec0:/i.test(server),
+    );
+
+    return {
+      gateways: {
+        ipv4: ipv4Gateway ? ok(ipv4Gateway) : unavailable<string>('Default IPv4 gateway not found'),
+        ipv6: ipv6Gateway ? ok(ipv6Gateway) : unavailable<string>('Default IPv6 gateway not found'),
+        interfaceName: active?.name
+          ? ok(active.name)
+          : unavailable<string>('Active interface not detected'),
+      },
+      dns: dnsServers.length > 0 ? ok(dnsServers) : unavailable<string[]>('No DNS servers reported'),
+      adapters: sections.map((section) => {
+        const wireless = /wi-?fi|wireless|802\.11/i.test(`${section.name} ${section.description}`);
+        return {
+          Name: section.name,
+          InterfaceType: wireless ? 71 : 6,
+          MediaType: wireless ? 'Native 802.11' : '802.3',
+          Status: 'Up',
+          LinkSpeed: '',
+        };
+      }),
+    } satisfies WindowsNetworkFacts;
+  })();
+
+  networkFactsEntry = { at: now, promise };
+  return promise;
+}
+
 function hexGatewayToIpv4(hex: string): string | null {
   try {
     const bytes = hex.match(/.{2}/g)?.reverse().map((pair) => parseInt(pair, 16)) ?? [];
@@ -69,11 +211,7 @@ function hexGatewayToIpv4(hex: string): string | null {
 export async function getOsVersionInfo(): Promise<Field<OsVersionInfo>> {
   try {
     if (os.platform() === 'win32') {
-      const rows = asArray(
-        await powerShellJson<OsVersionRow | OsVersionRow[]>(
-          "Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version,BuildNumber",
-        ),
-      );
+      const rows = asArray((await getWindowsStaticFacts())?.os ?? null);
       const row = rows[0];
       if (row?.Caption) {
         return ok({
@@ -124,11 +262,7 @@ interface OsVersionRow {
 export async function getPhysicalCores(): Promise<Field<number>> {
   try {
     if (os.platform() === 'win32') {
-      const rows = asArray(
-        await powerShellJson<{ NumberOfCores?: number }>(
-          'Get-CimInstance Win32_Processor | Select-Object -First 1 NumberOfCores',
-        ),
-      );
+      const rows = asArray((await getWindowsStaticFacts())?.cpu ?? null);
       const cores = rows[0]?.NumberOfCores;
       if (typeof cores === 'number' && cores > 0) return ok(cores);
     } else if (os.platform() === 'darwin') {
@@ -163,7 +297,7 @@ export async function getGpuDevices(): Promise<Field<GpuDevice[]>> {
     let devices: GpuDevice[] = [];
 
     if (os.platform() === 'win32') {
-      const rows = asArray(await powerShellJson<GpuRow>('Get-CimInstance Win32_VideoController | Select-Object Name,DriverVersion,AdapterRAM'));
+      const rows = asArray((await getWindowsStaticFacts())?.gpu ?? null);
       devices = rows
         .filter((row) => firstText(row.Name))
         .map((row) => ({
@@ -229,21 +363,7 @@ export async function getGateways(): Promise<GatewayInfo> {
 
   try {
     if (os.platform() === 'win32') {
-      const [routes, adapters] = await Promise.all([
-        powerShellJson<RouteRow | RouteRow[]>('Get-NetRoute | Where-Object { $_.DestinationPrefix -eq "0.0.0.0/0" -or $_.DestinationPrefix -eq "::/0" } | Sort-Object RouteMetric | Select-Object DestinationPrefix,NextHop,InterfaceIndex'),
-        powerShellJson<AdapterRow | AdapterRow[]>('Get-NetAdapter | Select-Object Name,InterfaceIndex,InterfaceType,MediaType,Status,LinkSpeed'),
-      ]);
-      const routeRows = asArray(routes);
-      const adapterRows = asArray(adapters);
-      const v4 = routeRows.find((row) => row.DestinationPrefix === '0.0.0.0/0' && firstText(row.NextHop));
-      const v6 = routeRows.find((row) => row.DestinationPrefix === '::/0' && firstText(row.NextHop));
-      const active = adapterRows.find((row) => row.InterfaceIndex === v4?.InterfaceIndex && row.Status === 'Up');
-
-      return {
-        ipv4: v4?.NextHop ? ok(v4.NextHop, 'os') : empty.ipv4,
-        ipv6: v6?.NextHop ? ok(v6.NextHop, 'os') : empty.ipv6,
-        interfaceName: active?.Name ? ok(active.Name, 'os') : unavailable('Active interface not detected'),
-      };
+      return (await getWindowsNetworkFacts())?.gateways ?? empty;
     }
 
     if (os.platform() === 'darwin') {
@@ -301,9 +421,7 @@ export async function getGateways(): Promise<GatewayInfo> {
 export async function getDnsServers(): Promise<Field<string[]>> {
   try {
     if (os.platform() === 'win32') {
-      const rows = asArray(await powerShellJson<DnsRow>('Get-DnsClientServerAddress | Where-Object { $_.ServerAddresses.Count -gt 0 } | Select-Object InterfaceAlias,ServerAddresses'));
-      const servers = [...new Set(rows.flatMap((row) => row.ServerAddresses ?? []).filter(Boolean))];
-      return servers.length > 0 ? ok(servers) : unavailable('No DNS servers reported');
+      return (await getWindowsNetworkFacts())?.dns ?? unavailable<string[]>('DNS configuration could not be read');
     }
     const resolv = await readFileSafe('/etc/resolv.conf');
     const servers = resolv
@@ -318,7 +436,9 @@ export async function getDnsServers(): Promise<Field<string[]>> {
 export async function getConnectionType(activeName: string | null): Promise<Field<string>> {
   try {
     if (os.platform() === 'win32') {
-      const rows = asArray(await powerShellJson<AdapterRow>('Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | Select-Object Name,InterfaceType,MediaType,LinkSpeed'));
+      const rows = asArray((await getWindowsNetworkFacts())?.adapters ?? null).filter(
+        (adapter) => adapter.Status === 'Up',
+      );
       const row = rows.find((adapter) => adapter.Name === activeName) ?? rows[0];
       if (!row) return unavailable('No active network adapter found');
       const label = `${row.Name ?? ''} ${row.MediaType ?? ''}`;

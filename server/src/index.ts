@@ -1,10 +1,12 @@
 import express from 'express';
+import compression from 'compression';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config';
 import { asyncRoute, notFound, errorHandler } from './lib/errors';
 import { sendData } from './lib/http';
 import { startSampler, stopSampler } from './services/metrics';
+import { getSystemInfo } from './services/systemInfo';
 import systemRouter from './routes/system';
 import networkRouter from './routes/network';
 import metricsRouter from './routes/metrics';
@@ -14,6 +16,7 @@ import settingsRouter from './routes/settings';
 
 const app = express();
 app.disable('x-powered-by');
+app.use(compression({ threshold: 1024, level: 6 }));
 
 /**
  * The dashboard is served by this process, so its requests are same-origin.
@@ -79,8 +82,24 @@ app.use('/api/settings', settingsRouter);
 app.use('/api', (_req, _res, next) => next(notFound('Unknown API endpoint')));
 
 if (fs.existsSync(config.clientDist)) {
-  app.use(express.static(config.clientDist, { index: false }));
+  app.use(
+    express.static(config.clientDist, {
+      index: false,
+      etag: true,
+      setHeaders(res, filePath) {
+        if (filePath.endsWith('sw.js')) {
+          res.setHeader('Cache-Control', 'no-cache');
+        } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+          // Vite content-hashes these filenames, so they can live forever.
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else {
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+        }
+      },
+    }),
+  );
   app.get(/^\/(?!api\/).*/, (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
     res.sendFile(path.join(config.clientDist, 'index.html'));
   });
 } else {
@@ -100,6 +119,9 @@ app.use(errorHandler);
 const server = app.listen(config.port, config.host, () => {
   console.log(`[SystemScope] Local agent listening on http://${config.host}:${config.port}`);
   startSampler();
+  // Warm local OS facts in the background so the first dashboard load is quick.
+  // This performs no external network calls.
+  void getSystemInfo().catch(() => undefined);
 });
 
 function shutdown(): void {

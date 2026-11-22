@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, Pause, Play } from 'lucide-react';
-import { TimeSeriesChart } from '../components/charts/MetricChart';
+import { TimeSeriesChart } from '../components/charts/LightweightChart';
 import { Button, Card, ErrorState, Select, Skeleton, StatCard } from '../components/ui';
 import { useApi } from '../hooks/useApi';
 import { useClientSettings } from '../context/SettingsContext';
@@ -13,6 +13,20 @@ const WINDOWS = [
   { label: 'Last 15 minutes', value: 900_000 },
 ];
 
+// Stable references keep the memoized SVG charts from re-rendering on every tick.
+const CPU_MEMORY_SERIES = [
+  { key: 'cpuPercent' as const, label: 'CPU', color: '#4fd1c5' },
+  { key: 'memoryPercent' as const, label: 'Memory', color: '#fbbf24' },
+];
+const DISK_SERIES = [{ key: 'diskPercent' as const, label: 'Disk', color: '#8593a5' }];
+const NETWORK_SERIES = [
+  { key: 'rxBytesPerSec' as const, label: 'Download', color: '#4fd1c5' },
+  { key: 'txBytesPerSec' as const, label: 'Upload', color: '#60a5fa' },
+];
+const percentFormat = (value: number) => `${value.toFixed(0)}%`;
+const binaryRate = (value: number) => formatBytesWithUnit(value, 'binary');
+const decimalRate = (value: number) => formatBytesWithUnit(value, 'decimal');
+
 export function Performance() {
   const { settings } = useClientSettings();
   const [windowMs, setWindowMs] = useState(settings.chartWindowMs);
@@ -23,8 +37,9 @@ export function Performance() {
   );
 
   const sample = data?.sample ?? null;
-  const history = data?.history ?? [];
+  const history = useMemo(() => data?.history ?? [], [data]);
   const unit = settings.byteUnit;
+  const rateFormat = unit === 'decimal' ? decimalRate : binaryRate;
 
   return (
     <div className="space-y-4">
@@ -63,12 +78,9 @@ export function Performance() {
           <Card title="CPU and memory" subtitle="Utilisation percentage over the selected window">
             <TimeSeriesChart
               data={history}
-              series={[
-                { key: 'cpuPercent', label: 'CPU', color: '#4fd1c5' },
-                { key: 'memoryPercent', label: 'Memory', color: '#fbbf24' },
-              ]}
+              series={CPU_MEMORY_SERIES}
               domain={[0, 100]}
-              valueFormatter={(value) => `${value.toFixed(0)}%`}
+              valueFormatter={percentFormat}
             />
             <Legend items={[{ label: 'CPU', color: '#4fd1c5' }, { label: 'Memory', color: '#fbbf24' }]} />
           </Card>
@@ -76,9 +88,9 @@ export function Performance() {
           <Card title="Storage" subtitle="Primary volume utilisation">
             <TimeSeriesChart
               data={history}
-              series={[{ key: 'diskPercent', label: 'Disk', color: '#8593a5' }]}
+              series={DISK_SERIES}
               domain={[0, 100]}
-              valueFormatter={(value) => `${value.toFixed(0)}%`}
+              valueFormatter={percentFormat}
             />
             <p className="mt-2 text-[11px] text-muted">Current: {formatBytesWithUnit(sample?.memoryUsedBytes, unit)} memory in use · {formatPercent(sample?.diskPercent ?? null)} disk used</p>
           </Card>
@@ -87,11 +99,8 @@ export function Performance() {
             <TimeSeriesChart
               data={history}
               height={280}
-              series={[
-                { key: 'rxBytesPerSec', label: 'Download', color: '#4fd1c5' },
-                { key: 'txBytesPerSec', label: 'Upload', color: '#60a5fa' },
-              ]}
-              valueFormatter={(value) => formatBytesWithUnit(value, unit)}
+              series={NETWORK_SERIES}
+              valueFormatter={rateFormat}
             />
             <Legend items={[{ label: 'Download', color: '#4fd1c5' }, { label: 'Upload', color: '#60a5fa' }]} />
           </Card>

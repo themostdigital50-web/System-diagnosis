@@ -10,3 +10,36 @@ export function createTtlCache(ttlMs: number) {
     return value;
   };
 }
+
+export interface Cached<T> {
+  value: T;
+  collectedAt: string;
+}
+
+/**
+ * Coalesces concurrent calls and serves a short-lived cached result.
+ * Expensive OS/network probes are never run twice for overlapping polls.
+ */
+export function cached<T>(ttlMs: number, producer: () => Promise<T>): () => Promise<Cached<T>> {
+  let entry: Cached<T> | null = null;
+  let expiresAt = 0;
+  let inFlight: Promise<Cached<T>> | null = null;
+
+  return async () => {
+    const now = Date.now();
+    if (entry && now < expiresAt) return entry;
+    if (inFlight) return inFlight;
+
+    inFlight = producer()
+      .then((value) => {
+        entry = { value, collectedAt: new Date().toISOString() };
+        expiresAt = Date.now() + ttlMs;
+        return entry;
+      })
+      .finally(() => {
+        inFlight = null;
+      });
+
+    return inFlight;
+  };
+}

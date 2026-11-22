@@ -68,6 +68,10 @@ docker run --rm -p 3001:3001 -e HOST=0.0.0.0 systemscope:local
 
 The image is a multi-stage build: dependency install, compile/typecheck, then a minimal Alpine runtime with production dependencies and compiled output only. It runs as the unprivileged `node` user with a read-only root filesystem, dropped capabilities, and no new privileges.
 
+Both install stages use `npm install --no-package-lock` because the committed lockfile was generated on Windows and contains only Windows Rollup/esbuild binaries. A fresh install resolves the correct Linux binaries inside the image; CI uses the same command so pushes build reliably on `ubuntu-latest`.
+
+Static assets are gzip-compressed and hashed assets are served with long-lived immutable caching. The service worker is registered only in production and caches the app shell, never `/api/*` responses. Browser installation requires localhost or HTTPS; a plain-HTTP LAN address remains usable but is not installable.
+
 ## Privacy
 
 The only external calls are the public-IP lookup (enabled by default, disable in `compose.yaml` or Settings) and speed tests, which only run when you click them in the dashboard. No collected system data is written to disk.

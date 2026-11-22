@@ -12,7 +12,7 @@ interface ExtendedNavigator extends Navigator {
 
 export function SystemInfo() {
   const { settings } = useClientSettings();
-  const { data, error, loading, refetch } = useApi<SystemInfoData>('/system/info', settings.pollIntervalMs);
+  const { data, error, loading, refetch } = useApi<SystemInfoData>('/system/info', Math.max(settings.pollIntervalMs, 10_000));
   const [showBrowser, setShowBrowser] = useState(true);
   const unit = settings.byteUnit;
   const nav = navigator as ExtendedNavigator;
@@ -94,7 +94,7 @@ export function SystemInfo() {
             <p className="text-xs text-warn">Unavailable — {data.storage.reason ?? 'No storage devices reported'}</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-sm">
+              <table className="mobile-cards w-full text-left text-sm">
                 <thead>
                   <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
                     <th className="py-2 pr-4 font-medium">Device</th>
@@ -108,12 +108,12 @@ export function SystemInfo() {
                 <tbody className="font-mono text-xs">
                   {data.storage.value.map((device) => (
                     <tr key={device.mount} className="border-b border-border/60 last:border-0">
-                      <td className="py-3 pr-4 font-sans text-sm">{device.name}<div className="text-[11px] text-muted">{device.mount}</div></td>
-                      <td className="py-3 pr-4 text-muted">{device.filesystem}</td>
-                      <td className="py-3 pr-4 text-right">{formatBytesWithUnit(device.totalBytes, unit)}</td>
-                      <td className="py-3 pr-4 text-right">{formatBytesWithUnit(device.usedBytes, unit)}</td>
-                      <td className="py-3 pr-4 text-right text-good">{formatBytesWithUnit(device.freeBytes, unit)}</td>
-                      <td className="py-3">
+                      <td data-label="Device" className="py-3 pr-4 font-sans text-sm">{device.name}<div className="text-[11px] text-muted">{device.mount}</div></td>
+                      <td data-label="Filesystem" className="py-3 pr-4 text-muted">{device.filesystem}</td>
+                      <td data-label="Total" className="py-3 pr-4 text-right">{formatBytesWithUnit(device.totalBytes, unit)}</td>
+                      <td data-label="Used" className="py-3 pr-4 text-right">{formatBytesWithUnit(device.usedBytes, unit)}</td>
+                      <td data-label="Free" className="py-3 pr-4 text-right text-good">{formatBytesWithUnit(device.freeBytes, unit)}</td>
+                      <td data-label="Usage" className="py-3">
                         <div className="flex items-center gap-2">
                           <div className="h-1 w-20 overflow-hidden rounded-full bg-surface-2">
                             <div className="h-full bg-accent" style={{ width: `${device.usedPercent}%` }} />

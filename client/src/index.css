@@ -57,3 +57,58 @@ button {
 ::selection {
   background: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
+
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Touch devices get comfortable tap targets without changing desktop density. */
+@media (pointer: coarse) {
+  button,
+  select {
+    min-height: 44px;
+  }
+}
+
+/* On phones, wide tables become labelled cards instead of sideways scrollers. */
+@media (max-width: 640px) {
+  .mobile-cards thead {
+    display: none;
+  }
+
+  .mobile-cards,
+  .mobile-cards tbody,
+  .mobile-cards tr,
+  .mobile-cards td {
+    display: block;
+    width: 100%;
+  }
+
+  .mobile-cards tr {
+    margin-bottom: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-2);
+  }
+
+  .mobile-cards td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0;
+    border: 0;
+    text-align: left;
+  }
+
+  .mobile-cards td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: var(--color-muted);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+}

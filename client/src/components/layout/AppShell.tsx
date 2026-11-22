@@ -28,20 +28,26 @@ const NAV = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
+function navClass(isActive: boolean): string {
+  return `flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors ${
+    isActive ? 'bg-accent/10 text-accent' : 'text-muted hover:bg-surface-2 hover:text-text'
+  }`;
+}
+
 export function AppShell() {
   const location = useLocation();
-  const health = useApi<Health>('/health', 15_000);
+  const health = useApi<Health>('/health', 30_000);
   const current = NAV.find((item) => item.to === location.pathname) ?? NAV[0];
   const online = health.data?.status === 'ok';
 
   return (
-    <div className="flex h-full min-h-screen bg-base">
-      <aside className="flex w-14 shrink-0 flex-col border-r border-border bg-surface lg:w-60">
-        <div className="flex h-14 items-center gap-3 border-b border-border px-3 lg:px-5">
+    <div className="flex min-h-screen bg-base">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface lg:flex">
+        <div className="flex h-14 items-center gap-3 border-b border-border px-5">
           <div className="grid h-8 w-8 shrink-0 place-items-center rounded border border-accent/40 bg-accent/10 font-mono text-xs font-bold text-accent">
             SS
           </div>
-          <div className="hidden min-w-0 lg:block">
+          <div className="min-w-0">
             <div className="truncate text-sm font-semibold tracking-tight">SystemScope</div>
             <div className="truncate text-[10px] uppercase tracking-[0.16em] text-muted">Local intelligence</div>
           </div>
@@ -49,24 +55,14 @@ export function AppShell() {
 
         <nav className="flex-1 space-y-1 px-2 py-4">
           {NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              title={label}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors ${
-                  isActive ? 'bg-accent/10 text-accent' : 'text-muted hover:bg-surface-2 hover:text-text'
-                }`
-              }
-            >
+            <NavLink key={to} to={to} end={to === '/'} title={label} className={({ isActive }) => navClass(isActive)}>
               <Icon size={17} className="shrink-0" />
-              <span className="hidden lg:block">{label}</span>
+              <span>{label}</span>
             </NavLink>
           ))}
         </nav>
 
-        <div className="hidden border-t border-border px-5 py-4 text-[11px] text-muted lg:block">
+        <div className="border-t border-border px-5 py-4 text-[11px] text-muted">
           Data stays on this machine.
           <br />
           External calls are opt-out in Settings.
@@ -74,7 +70,7 @@ export function AppShell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 lg:px-6">
+        <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border bg-surface px-4 lg:px-6">
           <div className="min-w-0">
             <h1 className="truncate text-base font-semibold">{current.label}</h1>
             <p className="hidden text-[11px] text-muted sm:block">
@@ -86,14 +82,19 @@ export function AppShell() {
               <span className={`h-2 w-2 rounded-full ${online ? 'bg-good' : 'bg-bad'}`} />
               {online ? 'Local agent online' : 'Agent unreachable'}
             </div>
-            <Button variant="ghost" onClick={() => window.dispatchEvent(new Event(REFRESH_EVENT))} title="Refresh all data">
-              <RefreshCw size={14} />
+            <Button
+              variant="ghost"
+              className="min-h-11 min-w-11 lg:min-h-0 lg:min-w-0"
+              onClick={() => window.dispatchEvent(new Event(REFRESH_EVENT))}
+              title="Refresh all data"
+            >
+              <RefreshCw size={16} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         </header>
 
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 lg:px-6">
+        <main className="flex-1 px-4 py-5 pb-24 lg:px-6 lg:pb-5">
           <div className="mx-auto max-w-[1400px]">
             <Suspense fallback={<div className="p-6 font-mono text-xs text-muted">Loading view…</div>}>
               <Outlet />
@@ -101,6 +102,28 @@ export function AppShell() {
           </div>
         </main>
       </div>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-border bg-surface/95 backdrop-blur lg:hidden"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-label="Primary"
+      >
+        {NAV.map(({ to, label, icon: Icon }) => (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            className={({ isActive }) =>
+              `flex min-h-14 flex-col items-center justify-center gap-1 text-[10px] ${
+                isActive ? 'bg-accent/10 text-accent' : 'text-muted'
+              }`
+            }
+          >
+            <Icon size={18} />
+            <span className="truncate px-0.5">{label}</span>
+          </NavLink>
+        ))}
+      </nav>
     </div>
   );
 }

@@ -4,14 +4,15 @@ import { api, errorMessage } from '../lib/api';
 import { formatBytesWithUnit, formatPercent, formatRateWithUnit, formatUptime } from '../lib/format';
 import { useApi } from '../hooks/useApi';
 import { useClientSettings } from '../context/SettingsContext';
-import { Sparkline } from '../components/charts/MetricChart';
+import { Sparkline } from '../components/charts/LightweightChart';
 import { Badge, Button, Card, DataRow, ErrorState, FieldValue, Skeleton, StatCard } from '../components/ui';
 import type { MetricsResponse, NetworkInfo, PingResult, SystemInfo } from '../types';
 
 export function Overview() {
   const { settings } = useClientSettings();
-  const system = useApi<SystemInfo>('/system/info', settings.pollIntervalMs);
-  const network = useApi<NetworkInfo>('/network/info', 15_000);
+  // Static-ish data is polled far less often than the live metric stream.
+  const system = useApi<SystemInfo>('/system/info', Math.max(settings.pollIntervalMs, 10_000));
+  const network = useApi<NetworkInfo>('/network/info', 30_000);
   const metrics = useApi<MetricsResponse>(`/metrics/snapshot?window=${settings.chartWindowMs}`, settings.pollIntervalMs);
   const [latency, setLatency] = useState<PingResult | null>(null);
   const [latencyBusy, setLatencyBusy] = useState(false);

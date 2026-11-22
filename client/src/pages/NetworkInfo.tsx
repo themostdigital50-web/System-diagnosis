@@ -20,7 +20,7 @@ const SIZES = [
 
 export function NetworkInfo() {
   const { settings } = useClientSettings();
-  const { data, error, loading, refetch } = useApi<NetworkInfoData>('/network/info', 15_000);
+  const { data, error, loading, refetch } = useApi<NetworkInfoData>('/network/info', 30_000);
   const [testBytes, setTestBytes] = useState(5 * 1024 * 1024);
   const [busy, setBusy] = useState<'download' | 'upload' | null>(null);
   const [results, setResults] = useState<Partial<Record<'download' | 'upload', SpeedResult>>>({});
@@ -95,7 +95,7 @@ export function NetworkInfo() {
       <Card title="Network interfaces" subtitle="As enumerated by the operating system" actions={<Globe2 size={15} className="text-muted" />}>
         {loading && !data ? <Skeleton rows={4} /> : data ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-xs">
+            <table className="mobile-cards w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
                   <th className="py-2 pr-4 font-medium">Interface</th>
@@ -108,11 +108,11 @@ export function NetworkInfo() {
               <tbody className="font-mono">
                 {data.interfaces.map((iface) => (
                   <tr key={iface.name} className="border-b border-border/60 last:border-0">
-                    <td className="py-2.5 pr-4 font-sans text-sm">{iface.name}{iface.name === data.activeInterface.value && <span className="ml-2"><Badge tone="accent">active</Badge></span>}</td>
-                    <td className="py-2.5 pr-4 text-muted">{iface.mac || '—'}</td>
-                    <td className="py-2.5 pr-4">{iface.ipv4.join(', ') || '—'}</td>
-                    <td className="py-2.5 pr-4 text-muted">{iface.ipv6.join(', ') || '—'}</td>
-                    <td className="py-2.5 pr-4">{iface.internal ? 'yes' : 'no'}</td>
+                    <td data-label="Interface" className="py-2.5 pr-4 font-sans text-sm">{iface.name}{iface.name === data.activeInterface.value && <span className="ml-2"><Badge tone="accent">active</Badge></span>}</td>
+                    <td data-label="MAC" className="py-2.5 pr-4 text-muted">{iface.mac || '—'}</td>
+                    <td data-label="IPv4" className="py-2.5 pr-4">{iface.ipv4.join(', ') || '—'}</td>
+                    <td data-label="IPv6" className="py-2.5 pr-4 text-muted">{iface.ipv6.join(', ') || '—'}</td>
+                    <td data-label="Internal" className="py-2.5 pr-4">{iface.internal ? 'yes' : 'no'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -142,7 +142,7 @@ export function NetworkInfo() {
 
         {Object.keys(results).length > 0 ? (
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[520px] text-left text-xs">
+            <table className="mobile-cards w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-border text-[11px] uppercase tracking-wide text-muted">
                   <th className="py-2 pr-4 font-medium">Direction</th>
@@ -157,11 +157,11 @@ export function NetworkInfo() {
                   const result = results[key] as SpeedResult;
                   return (
                     <tr key={key} className="border-b border-border/60 last:border-0">
-                      <td className="py-2.5 pr-4 capitalize">{result.direction}</td>
-                      <td className="py-2.5 pr-4 text-right text-accent">{formatMbps(result.megabitsPerSecond)} Mbps</td>
-                      <td className="py-2.5 pr-4 text-right">{formatBytesWithUnit(result.transferredBytes, unit)}</td>
-                      <td className="py-2.5 pr-4 text-right">{formatDuration(result.durationMs)}</td>
-                      <td className="py-2.5">{result.provider}</td>
+                      <td data-label="Direction" className="py-2.5 pr-4 capitalize">{result.direction}</td>
+                      <td data-label="Throughput" className="py-2.5 pr-4 text-right text-accent">{formatMbps(result.megabitsPerSecond)} Mbps</td>
+                      <td data-label="Transferred" className="py-2.5 pr-4 text-right">{formatBytesWithUnit(result.transferredBytes, unit)}</td>
+                      <td data-label="Duration" className="py-2.5 pr-4 text-right">{formatDuration(result.durationMs)}</td>
+                      <td data-label="Provider" className="py-2.5">{result.provider}</td>
                     </tr>
                   );
                 })}
