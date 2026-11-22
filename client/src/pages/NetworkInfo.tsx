@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Activity, Download, Globe2, Upload } from 'lucide-react';
-import { api, errorMessage } from '../lib/api';
+import { errorMessage, getApiBase, runTool } from '../lib/api';
 import { formatBytesWithUnit, formatDuration, formatMbps } from '../lib/format';
 import { useApi } from '../hooks/useApi';
 import { useClientSettings } from '../context/SettingsContext';
@@ -31,7 +31,7 @@ export function NetworkInfo() {
     setBusy(direction);
     setSpeedError(null);
     try {
-      const result = await api.post<SpeedResult>(`/speedtest/${direction}`, { bytes: testBytes });
+      const result = await runTool<SpeedResult>('speedtest', { direction, bytes: testBytes });
       setResults((current) => ({ ...current, [direction]: result }));
     } catch (err) {
       setSpeedError(errorMessage(err));
@@ -123,7 +123,7 @@ export function NetworkInfo() {
 
       <Card
         title="Speed test"
-        subtitle="External throughput measurement via Cloudflare"
+        subtitle={getApiBase() ? 'Runs on this computer via its agent, via Cloudflare' : 'External throughput measurement via Cloudflare'}
         actions={<Activity size={15} className="text-muted" />}
       >
         <div className="flex flex-wrap items-center gap-3">

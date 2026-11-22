@@ -1,0 +1,33 @@
+# Render Blueprint for the public dashboard.
+# Set VIEWER_TOKEN and AGENT_ENROLLMENT_TOKEN in the Render dashboard; they are
+# intentionally not stored in this file. A Persistent Disk is required so
+# device reports survive restarts (available on paid instance types).
+services:
+  - type: web
+    name: systemscope
+    runtime: docker
+    plan: starter
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 3001
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /data
+      - key: VIEWER_TOKEN
+        sync: false
+      - key: AGENT_ENROLLMENT_TOKEN
+        sync: false
+      - key: METRICS_INTERVAL_MS
+        value: 2000
+      - key: PUBLIC_IP_ENABLED
+        value: "true"
+    disk:
+      name: systemscope-data
+      mountPath: /data
+      sizeGB: 1

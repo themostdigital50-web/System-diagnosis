@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorMessage } from '../lib/api';
+import { api, errorMessage, getApiBase } from '../lib/api';
 
 export const REFRESH_EVENT = 'systemscope:refresh';
 
@@ -53,16 +53,21 @@ export function useApi<T>(path: string | null, intervalMs = 0) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Re-evaluated on every render; the URL changes when the selected device
+  // changes, so requests and dedupe keys always stay in the right scope.
+  const base = getApiBase();
+  const key = `${base}${path ?? ''}`;
+
   const mounted = useRef(true);
   const seqRef = useRef(0);
   const failuresRef = useRef(0);
-  const activeRef = useRef<Array<{ path: string; flight: Flight }>>([]);
+  const activeRef = useRef<Array<{ key: string; flight: Flight }>>([]);
 
   const load = useCallback(async () => {
     if (!path) return;
     const seq = ++seqRef.current;
-    const flight = acquire(path);
-    activeRef.current.push({ path, flight });
+    const flight = acquire(key);
+    activeRef.current.push({ key, flight });
 
     try {
       const result = (await flight.promise) as T;
@@ -76,11 +81,11 @@ export function useApi<T>(path: string | null, intervalMs = 0) {
       setError(errorMessage(err));
       failuresRef.current = Math.min(failuresRef.current + 1, 5);
     } finally {
-      release(path, flight);
+      release(key, flight);
       activeRef.current = activeRef.current.filter((item) => item.flight !== flight);
       if (mounted.current && seq === seqRef.current) setLoading(false);
     }
-  }, [path]);
+  }, [key, path]);
 
   useEffect(() => {
     mounted.current = true;
@@ -115,7 +120,7 @@ export function useApi<T>(path: string | null, intervalMs = 0) {
 
     return () => {
       mounted.current = false;
-      for (const { path: activePath, flight } of activeRef.current) release(activePath, flight);
+      for (const { key: activeKey, flight } of activeRef.current) release(activeKey, flight);
       activeRef.current = [];
       if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);

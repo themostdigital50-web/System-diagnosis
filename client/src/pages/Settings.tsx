@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { CheckCircle2, LockKeyhole, Save, SlidersHorizontal } from 'lucide-react';
 import { api, errorMessage } from '../lib/api';
 import { useApi } from '../hooks/useApi';
@@ -8,6 +9,7 @@ import type { ServerSettings } from '../types';
 
 export function Settings() {
   const { settings, update, reset } = useClientSettings();
+  const inDevice = useLocation().pathname.startsWith('/device/');
   const server = useApi<ServerSettings>('/settings');
   const [form, setForm] = useState<ServerSettings | null>(null);
   const [saving, setSaving] = useState(false);
@@ -90,7 +92,15 @@ export function Settings() {
         </div>
       </Card>
 
-      <Card title="Local agent" subtitle="Applied to the Node.js backend immediately" actions={<Save size={15} className="text-muted" />}>
+      {inDevice && (
+        <Card title="Device agent settings" subtitle="Configured on the computer itself">
+          <p className="text-xs leading-relaxed text-muted">
+            This computer&apos;s agent owns its sampling and diagnostic defaults. To change them, edit the agent config
+            or reinstall the agent on that machine. The controls here apply only to the server&apos;s local dashboard.
+          </p>
+        </Card>
+      )}
+      {!inDevice && <Card title="Local agent" subtitle="Applied to the Node.js backend immediately" actions={<Save size={15} className="text-muted" />}>
         {server.error && <ErrorState error={server.error} onRetry={() => void server.refetch()} />}
         {server.loading && !server.data ? <Skeleton rows={8} /> : form ? (
           <div>
@@ -148,12 +158,12 @@ export function Settings() {
             </div>
           </div>
         ) : null}
-      </Card>
+      </Card>}
 
       <Card title="Privacy and limits" subtitle="How this application handles data" className="xl:col-span-2" actions={<LockKeyhole size={15} className="text-muted" />}>
         <div className="grid gap-4 text-xs leading-relaxed text-muted sm:grid-cols-2 lg:grid-cols-4">
-          <div><div className="mb-1 font-medium text-text">Local by default</div>The backend binds only to 127.0.0.1 and accepts requests from the local dashboard origin.</div>
-          <div><div className="mb-1 font-medium text-text">No stored telemetry</div>Collected system data lives in memory for chart history and is never written to disk or sent anywhere.</div>
+          <div><div className="mb-1 font-medium text-text">Access</div>Local mode binds to 127.0.0.1. Public deployments bind to all interfaces and gate device data behind the viewer password and per-device tokens.</div>
+          <div><div className="mb-1 font-medium text-text">Stored reports</div>Enrolled computers send their data here; the latest report per device is written to the configured data directory with a capped metric history.</div>
           <div><div className="mb-1 font-medium text-text">External calls</div>Only two: public IP lookup (api.ipify.org) and user-started speed tests (speed.cloudflare.com).</div>
           <div><div className="mb-1 font-medium text-text">Bounded operations</div>Diagnostics validate every input, run without a shell, time out, and are limited to two concurrent runs. Speed tests are single-instance.</div>
         </div>

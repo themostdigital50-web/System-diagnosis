@@ -22,6 +22,13 @@ services:
       PORT: 3001
       METRICS_INTERVAL_MS: 2000
       PUBLIC_IP_ENABLED: "true"
+      # Set these on a public deployment. See README.md for enrollment.
+      VIEWER_TOKEN: ${VIEWER_TOKEN:-}
+      AGENT_ENROLLMENT_TOKEN: ${AGENT_ENROLLMENT_TOKEN:-}
+      DATA_DIR: /data
+
+    volumes:
+      - systemscope-data:/data
 
     # Keep the container least-privileged. NET_RAW is needed for ICMP ping
     # and traceroute used by the Diagnostics page.
@@ -45,3 +52,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+volumes:
+  systemscope-data:

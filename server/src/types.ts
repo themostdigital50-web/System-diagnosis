@@ -206,3 +206,65 @@ export interface ServerSettings {
   tracerouteMaxHops: number;
   httpTimeoutMs: number;
 }
+
+/** Fleet mode: a device agent reports its own OS data to the dashboard. */
+
+export type DevicePlatform = 'win32' | 'linux';
+
+export interface DeviceReport {
+  agentVersion: string;
+  platform: DevicePlatform;
+  system: SystemInfo;
+  network: NetworkInfo;
+  metrics: {
+    sample: MetricSample | null;
+    history: MetricSample[];
+    intervalMs: number;
+    collectedAt: string;
+  };
+}
+
+export interface DeviceCommand {
+  id: string;
+  tool: string;
+  params: Record<string, unknown>;
+  status: 'pending' | 'running' | 'done' | 'error' | 'expired';
+  createdAt: string;
+  expiresAt: string;
+  completedAt?: string;
+  result?: unknown;
+  error?: string;
+}
+
+export interface DeviceRecord {
+  id: string;
+  label: string;
+  tokenHash: string;
+  createdAt: string;
+  lastSeenAt: string | null;
+  report: DeviceReport | null;
+  commands: DeviceCommand[];
+}
+
+export type DeviceStatus = 'online' | 'stale' | 'offline';
+
+export interface DeviceSummary {
+  id: string;
+  label: string;
+  platform: DevicePlatform | null;
+  osName: string | null;
+  hostname: string | null;
+  cpuModel: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  status: DeviceStatus;
+}
+
+export interface FleetConfig {
+  fleetEnabled: boolean;
+  authRequired: boolean;
+  enrollmentRequired: boolean;
+  staleMs: number;
+  storageOk: boolean;
+  supportedPlatforms: DevicePlatform[];
+}

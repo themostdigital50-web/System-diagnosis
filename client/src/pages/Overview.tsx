@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, CircleGauge, Clock3, Globe2, HardDrive, MemoryStick, Cpu } from 'lucide-react';
-import { api, errorMessage } from '../lib/api';
+import { errorMessage, getApiBase, runTool } from '../lib/api';
 import { formatBytesWithUnit, formatPercent, formatRateWithUnit, formatUptime } from '../lib/format';
 import { useApi } from '../hooks/useApi';
 import { useClientSettings } from '../context/SettingsContext';
@@ -27,7 +27,7 @@ export function Overview() {
     setLatencyError(null);
     try {
       const host = network.data?.gateway.value ?? '1.1.1.1';
-      setLatency(await api.post<PingResult>('/diagnostics/ping', { host, count: 3, timeoutMs: 1500 }));
+      setLatency(await runTool<PingResult>('ping', { host, count: 3, timeoutMs: 1500 }));
     } catch (error) {
       setLatencyError(errorMessage(error));
     } finally {
@@ -151,9 +151,9 @@ export function Overview() {
       </div>
 
       <p className="text-[11px] leading-relaxed text-muted">
-        All metrics originate from the local Node.js agent running on this machine. Values that the operating system
-        does not expose are shown as unavailable rather than substituted. External lookups (public IP) are documented
-        on the Settings page.
+        {getApiBase()
+          ? 'All metrics were collected by the agent installed on this computer. Values the operating system does not expose are shown as unavailable rather than substituted.'
+          : 'All metrics originate from the local Node.js agent running on this machine. Values that the operating system does not expose are shown as unavailable rather than substituted. External lookups (public IP) are documented on the Settings page.'}
       </p>
     </div>
   );

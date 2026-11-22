@@ -34,6 +34,12 @@ export const config = {
   publicIpCacheMs: 60_000,
   speedTestMaxBytes: intFromEnv('SPEEDTEST_MAX_BYTES', 25 * 1024 * 1024, 1024 * 1024, 100 * 1024 * 1024),
   speedTestTimeoutMs: 30_000,
+  // Fleet mode. Viewer/admin tokens are optional so the local dashboard keeps working.
+  dataDir: process.env.DATA_DIR?.trim() || path.resolve(process.cwd(), 'data'),
+  viewerToken: process.env.VIEWER_TOKEN?.trim() || '',
+  enrollmentToken: process.env.AGENT_ENROLLMENT_TOKEN?.trim() || '',
+  deviceStaleMs: intFromEnv('DEVICE_STALE_MS', 90_000, 15_000, 3_600_000),
+  deviceCommandTtlMs: intFromEnv('DEVICE_COMMAND_TTL_MS', 60_000, 10_000, 600_000),
   pingCount: 4,
   pingTimeoutMs: 2000,
   tracerouteMaxHops: 20,

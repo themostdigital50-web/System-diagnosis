@@ -194,3 +194,61 @@ export interface ServerSettings {
   tracerouteMaxHops: number;
   httpTimeoutMs: number;
 }
+
+/** Fleet mode: per-computer reports sent by a local Windows/Linux agent. */
+
+export type DevicePlatform = 'win32' | 'linux';
+
+export interface FleetConfig {
+  fleetEnabled: boolean;
+  authRequired: boolean;
+  enrollmentRequired: boolean;
+  staleMs: number;
+  storageOk: boolean;
+  supportedPlatforms: DevicePlatform[];
+}
+
+export type DeviceStatus = 'online' | 'stale' | 'offline';
+
+export interface DeviceSummary {
+  id: string;
+  label: string;
+  platform: DevicePlatform | null;
+  osName: string | null;
+  hostname: string | null;
+  cpuModel: string | null;
+  createdAt: string;
+  lastSeenAt: string | null;
+  status: DeviceStatus;
+}
+
+export interface DeviceReport {
+  agentVersion: string;
+  platform: DevicePlatform;
+  system: SystemInfo;
+  network: NetworkInfo;
+  metrics: {
+    sample: MetricSample | null;
+    history: MetricSample[];
+    intervalMs: number;
+    collectedAt: string;
+  };
+}
+
+export interface DeviceCommandState {
+  id: string;
+  tool: string;
+  status: 'pending' | 'running' | 'done' | 'error' | 'expired';
+  result: unknown;
+  error: string | null;
+  createdAt: string;
+  expiresAt: string;
+  completedAt: string | null;
+}
+
+export interface DeviceHealth {
+  status: 'ok' | 'online' | 'stale' | 'offline';
+  label: string;
+  platform: DevicePlatform | null;
+  lastSeenAt: string | null;
+}

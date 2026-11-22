@@ -1,5 +1,5 @@
 /* SystemScope app-shell service worker. Never caches /api/* responses. */
-const CACHE = 'systemscope-shell-v2';
+const CACHE = 'systemscope-shell-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png'];
 
 /** Read the built HTML so the hashed JS/CSS files are cached on first install. */

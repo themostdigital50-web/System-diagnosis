@@ -3,23 +3,28 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
   Activity,
   Cpu,
+  Laptop,
   LayoutDashboard,
   Network,
   RefreshCw,
   Settings,
   TerminalSquare,
 } from 'lucide-react';
+import { useFleet } from '../../context/FleetContext';
 import { useApi, REFRESH_EVENT } from '../../hooks/useApi';
 import { Button } from '../ui';
 
 interface Health {
   status: string;
-  service: string;
-  platform: string;
-  uptimeSeconds: number;
+  service?: string;
+  platform?: string | null;
+  uptimeSeconds?: number;
+  label?: string;
+  lastSeenAt?: string | null;
 }
 
-const NAV = [
+const ALL_NAV = [
+  { to: '/devices', label: 'Devices', icon: Laptop },
   { to: '/', label: 'Overview', icon: LayoutDashboard },
   { to: '/system', label: 'System', icon: Cpu },
   { to: '/network', label: 'Network', icon: Network },
@@ -36,8 +41,14 @@ function navClass(isActive: boolean): string {
 
 export function AppShell() {
   const location = useLocation();
+  const { config, token, setToken } = useFleet();
   const health = useApi<Health>('/health', 30_000);
-  const current = NAV.find((item) => item.to === location.pathname) ?? NAV[0];
+  const inDevice = location.pathname.startsWith('/device/');
+  // Local-agent views would show the server's container data in fleet mode.
+  const nav = config?.fleetEnabled ? ALL_NAV.filter((item) => item.to === '/devices') : ALL_NAV;
+  const current = inDevice
+    ? { to: '/devices', label: 'Computer', icon: Laptop }
+    : (nav.find((item) => item.to === location.pathname) ?? nav[0]);
   const online = health.data?.status === 'ok';
 
   return (
@@ -49,12 +60,14 @@ export function AppShell() {
           </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold tracking-tight">SystemScope</div>
-            <div className="truncate text-[10px] uppercase tracking-[0.16em] text-muted">Local intelligence</div>
+            <div className="truncate text-[10px] uppercase tracking-[0.16em] text-muted">
+              {config?.fleetEnabled ? 'Fleet monitoring' : 'Local intelligence'}
+            </div>
           </div>
         </div>
 
         <nav className="flex-1 space-y-1 px-2 py-4">
-          {NAV.map(({ to, label, icon: Icon }) => (
+          {nav.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to} end={to === '/'} title={label} className={({ isActive }) => navClass(isActive)}>
               <Icon size={17} className="shrink-0" />
               <span>{label}</span>
@@ -62,10 +75,10 @@ export function AppShell() {
           ))}
         </nav>
 
-        <div className="border-t border-border px-5 py-4 text-[11px] text-muted">
-          Data stays on this machine.
-          <br />
-          External calls are opt-out in Settings.
+        <div className="border-t border-border px-5 py-4 text-[11px] leading-relaxed text-muted">
+          {config?.fleetEnabled
+            ? 'Computers report their own data through a local agent. Phones and macOS are not supported.'
+            : 'Data stays on this machine. External calls are opt-out in Settings.'}
         </div>
       </aside>
 
@@ -80,7 +93,9 @@ export function AppShell() {
           <div className="flex items-center gap-3">
             <div className="hidden items-center gap-2 text-xs text-muted sm:flex">
               <span className={`h-2 w-2 rounded-full ${online ? 'bg-good' : 'bg-bad'}`} />
-              {online ? 'Local agent online' : 'Agent unreachable'}
+              {online
+                ? (inDevice ? 'Computer online' : config?.fleetEnabled ? 'Dashboard online' : 'Local agent online')
+                : (inDevice ? 'Computer offline' : config?.fleetEnabled ? 'Dashboard unreachable' : 'Agent unreachable')}
             </div>
             <Button
               variant="ghost"
@@ -91,6 +106,16 @@ export function AppShell() {
               <RefreshCw size={16} />
               <span className="hidden sm:inline">Refresh</span>
             </Button>
+            {config?.authRequired && token && (
+              <Button
+                variant="ghost"
+                className="min-h-11 lg:min-h-0"
+                onClick={() => setToken('')}
+                title="Sign out of the dashboard"
+              >
+                Sign out
+              </Button>
+            )}
           </div>
         </header>
 
@@ -104,11 +129,11 @@ export function AppShell() {
       </div>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-6 border-t border-border bg-surface/95 backdrop-blur lg:hidden"
+        className={`fixed inset-x-0 bottom-0 z-40 grid ${config?.fleetEnabled ? 'grid-cols-1' : 'grid-cols-7'} border-t border-border bg-surface/95 backdrop-blur lg:hidden`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
         aria-label="Primary"
       >
-        {NAV.map(({ to, label, icon: Icon }) => (
+        {nav.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}

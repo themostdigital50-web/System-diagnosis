@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Activity, Globe2, Network, Play, Route, Server, ShieldCheck, SquareTerminal } from 'lucide-react';
-import { api, ApiError, errorMessage } from '../lib/api';
+import { ApiError, errorMessage, getApiBase, runTool } from '../lib/api';
 import { formatDuration } from '../lib/format';
 import { useClientSettings } from '../context/SettingsContext';
 import { Badge, Button, Card, DataRow, EmptyState, Input, RawOutput, Select, SectionTitle } from '../components/ui';
@@ -43,7 +43,7 @@ export function Diagnostics() {
       else if (tool === 'traceroute') body = { host, maxHops, timeoutMs };
       else body = { host, count, timeoutMs };
 
-      setResult(await api.post(`/diagnostics/${tool}`, body));
+      setResult(await runTool(tool, body));
     } catch (err) {
       if (err instanceof ApiError && err.details?.length) {
         setError(err.details.map((detail) => `${detail.path}: ${detail.message}`).join(' · '));
@@ -76,7 +76,9 @@ export function Diagnostics() {
         </div>
         <div className="mt-4 flex items-start gap-2 border-t border-border pt-4 text-[11px] leading-relaxed text-muted">
           <ShieldCheck size={15} className="mt-0.5 shrink-0 text-good" />
-          Hosts and URLs are validated server-side. Native commands run without a shell and are killed after a timeout.
+          {getApiBase()
+            ? 'This runs on the selected computer via its agent. Hosts and URLs are validated, commands are allowlisted, and results return here when complete.'
+            : 'Hosts and URLs are validated server-side. Native commands run without a shell and are killed after a timeout.'}
         </div>
       </Card>
 

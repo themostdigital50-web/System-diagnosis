@@ -39,9 +39,14 @@ RUN npm run typecheck && npm run build
 ################################################################################
 FROM base AS final
 ENV NODE_ENV=production
+ENV DATA_DIR=/data
 
 # Native tools used by the Diagnostics page inside the container.
 RUN apk add --no-cache iputils bind-tools traceroute
+
+# Persistent fleet reports live here. Create it as the runtime user so a named
+# volume mounted by Compose/Render inherits writable ownership.
+RUN mkdir -p /data && chown node:node /data
 
 USER node
 WORKDIR /usr/src/app

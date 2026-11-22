@@ -13,6 +13,9 @@ import metricsRouter from './routes/metrics';
 import diagnosticsRouter from './routes/diagnostics';
 import speedtestRouter from './routes/speedtest';
 import settingsRouter from './routes/settings';
+import agentRouter from './routes/agent';
+import { deviceRouter, fleetConfigRouter } from './routes/fleet';
+import { initFleetStore } from './services/fleetStore';
 
 const app = express();
 app.disable('x-powered-by');
@@ -41,8 +44,8 @@ app.use((req, res, next) => {
   if (allowed && origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Vary', 'Origin');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Enrollment-Token');
   }
 
   if (req.method === 'OPTIONS') {
@@ -53,7 +56,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '32kb' }));
+// Device reports contain bounded metric history, so allow room for them while
+// still rejecting oversized payloads.
+app.use(express.json({ limit: '512kb' }));
 
 app.use('/api', (_req, res, next) => {
   res.setHeader('Cache-Control', 'no-store');
@@ -78,6 +83,11 @@ app.use('/api/metrics', metricsRouter);
 app.use('/api/diagnostics', diagnosticsRouter);
 app.use('/api/speedtest', speedtestRouter);
 app.use('/api/settings', settingsRouter);
+
+// Per-computer fleet endpoints. The local routes above keep working unchanged.
+app.use('/api/fleet', fleetConfigRouter);
+app.use('/api/devices', deviceRouter);
+app.use('/api/agent', agentRouter);
 
 app.use('/api', (_req, _res, next) => next(notFound('Unknown API endpoint')));
 
@@ -116,17 +126,22 @@ if (fs.existsSync(config.clientDist)) {
 
 app.use(errorHandler);
 
-const server = app.listen(config.port, config.host, () => {
-  console.log(`[SystemScope] Local agent listening on http://${config.host}:${config.port}`);
-  startSampler();
-  // Warm local OS facts in the background so the first dashboard load is quick.
-  // This performs no external network calls.
-  void getSystemInfo().catch(() => undefined);
+let server: import('node:http').Server;
+
+void initFleetStore().finally(() => {
+  server = app.listen(config.port, config.host, () => {
+    console.log(`[SystemScope] Local agent listening on http://${config.host}:${config.port}`);
+    console.log(`[SystemScope] Fleet storage: ${config.dataDir}`);
+    startSampler();
+    // Warm local OS facts in the background so the first dashboard load is quick.
+    void getSystemInfo().catch(() => undefined);
+  });
 });
 
 function shutdown(): void {
   stopSampler();
-  server.close(() => process.exit(0));
+  if (server) server.close(() => process.exit(0));
+  else process.exit(0);
 }
 
 process.on('SIGINT', shutdown);

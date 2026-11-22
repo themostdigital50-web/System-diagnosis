@@ -27,11 +27,11 @@ ports:
 
 ## What the container reports
 
-This image reports **container-level** information: the container's hostname, CPU view, memory, network interfaces and filesystem. It does **not** inspect the Windows/macOS host. Windows-specific fields (WMI-friendly OS name, physical core count, GPU driver/VRAM) are unavailable inside Linux containers and are shown as **Unavailable** with a reason — never guessed.
+In **local mode** (no enrollment), this image reports **container-level** information: the container's hostname, CPU view, memory, network interfaces and filesystem. It does **not** inspect the Windows/macOS host. Windows-specific fields (WMI-friendly OS name, physical core count, GPU driver/VRAM) are unavailable inside Linux containers and are shown as **Unavailable** with a reason — never guessed. For real host data in local mode, run `npm run dev` on the machine itself.
 
-For real host data, run locally with `npm run dev` instead of Docker.
+For a deployed dashboard that shows **real per-computer data**, use **fleet mode**: enroll each Windows/Linux computer in the dashboard and run the device agent on it (see the "Fleet mode" section of `README.md`). Fleet reports are stored on the mounted data volume, not read from this container.
 
-Native networking tools (`ping`, `nslookup`, `traceroute`) are installed in the image, and the container is granted `NET_RAW` so ICMP diagnostics work. HTTP and TCP port checks use Node directly.
+Native networking tools (`ping`, `nslookup`, `traceroute`) are installed in the image, and the container is granted `NET_RAW` so ICMP diagnostics work for local mode. HTTP and TCP port checks use Node directly. Device diagnostics run on the device agent, not here.
 
 ## Configuration
 
@@ -46,8 +46,15 @@ Set these under `environment:` in `compose.yaml` (or pass `--env-file`):
 | `PUBLIC_IP_ENABLED` | `true` | Set to `false` to stop the external ipify lookup. |
 | `PUBLIC_IP_URL` | ipify URL | Public IP provider. |
 | `SPEEDTEST_MAX_BYTES` | `52428800` | Per-test byte ceiling (1–100 MB). |
+| `DATA_DIR` | `/data` | Writable directory for `fleet.json`; mounted as the `systemscope-data` volume. |
+| `VIEWER_TOKEN` | empty | Dashboard password for fleet data. Set this on any public deployment. |
+| `AGENT_ENROLLMENT_TOKEN` | empty | Secret for scripted enrollment (`POST /api/agent/enroll`). |
+| `DEVICE_STALE_MS` | `90000` | Last-report age before a device is marked stale. |
+| `DEVICE_COMMAND_TTL_MS` | `60000` | Lifetime of a queued diagnostic. |
 
-No `.env` file is copied into the image. Settings changed in the UI are held in memory (agent settings) or in the browser (interface preferences) and are lost when the container is replaced.
+Compose mounts a named `systemscope-data` volume at `/data`, so device reports survive container recreation. The `/data` directory is created as the unprivileged `node` user in the image. If the volume is not writable, the dashboard displays a persistent-storage warning and reports last only for the current session.
+
+No `.env` file is copied into the image. Interface preferences live in the browser; agent settings changed in the UI are held in memory. Fleet reports are the exception: they are written to `/data/fleet.json` with `0600` permissions.
 
 ## Health check
 
@@ -74,4 +81,4 @@ Static assets are gzip-compressed and hashed assets are served with long-lived i
 
 ## Privacy
 
-The only external calls are the public-IP lookup (enabled by default, disable in `compose.yaml` or Settings) and speed tests, which only run when you click them in the dashboard. No collected system data is written to disk.
+The only external calls are the public-IP lookup (enabled by default, disable in `compose.yaml` or Settings) and speed tests, which only run when you click them in the dashboard. Fleet reports received from enrolled device agents are written to `/data/fleet.json` so they survive restarts; local-mode metric history stays in memory.
