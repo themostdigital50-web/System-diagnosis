@@ -1,0 +1,37 @@
+# Version control and local editor state
+**/.git
+**/.github
+**/.gitignore
+**/.vs
+**/.vscode
+**/.idea
+**/.classpath
+**/.project
+**/.settings
+**/*.swp
+
+# Secrets and local environment overrides (never baked into the image)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Dependencies and build artifacts are recreated inside the image
+**/node_modules
+**/npm-debug.log*
+**/dist
+**/build
+**/coverage
+**/*.tsbuildinfo
+
+# Docker's own files and documentation
+**/.dockerignore
+**/docker-compose*
+**/compose.y*ml
+**/Dockerfile*
+README.md
+README.Docker.md
+LICENSE
+
+# OS clutter
+.DS_Store
+Thumbs.db

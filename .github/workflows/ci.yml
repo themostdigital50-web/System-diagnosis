@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.17.0"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate Compose definition
+        run: docker compose config
+
+      - name: Build Docker image
+        run: docker build -t systemscope:ci .
+
+      - name: Smoke test container
+        run: |
+          docker compose up -d
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3001/api/health > /dev/null; then
+              echo "Agent is healthy"
+              docker compose logs
+              docker compose down
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Agent did not become healthy"
+          docker compose logs
+          docker compose down
+          exit 1

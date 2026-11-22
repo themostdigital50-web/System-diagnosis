@@ -1,0 +1,23 @@
+{
+  "name": "systemscope",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal computer and network intelligence dashboard",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n server,client -c cyan,magenta \"npm run dev -w @systemscope/server\" \"npm run dev -w @systemscope/client\"",
+    "build": "npm run build -w @systemscope/server && npm run build -w @systemscope/client",
+    "typecheck": "npm run typecheck -w @systemscope/server && npm run typecheck -w @systemscope/client",
+    "start": "npm run start -w @systemscope/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

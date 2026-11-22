@@ -1,0 +1,47 @@
+# SystemScope: single local container serving the dashboard and the API.
+# Start with: docker compose up --build -d
+services:
+  systemscope:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_VERSION: 24.17.0
+    image: systemscope:local
+    container_name: systemscope
+    restart: unless-stopped
+
+    # Published on all host interfaces. Change to "127.0.0.1:3001:3001"
+    # if the dashboard should only be reachable from this machine.
+    ports:
+      - "3001:3001"
+
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3001
+      METRICS_INTERVAL_MS: 2000
+      PUBLIC_IP_ENABLED: "true"
+
+    # Keep the container least-privileged. NET_RAW is needed for ICMP ping
+    # and traceroute used by the Diagnostics page.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_RAW
+    read_only: true
+    tmpfs:
+      - /tmp
+
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
